@@ -86,7 +86,7 @@ def key_lenght(text):
             avg_ic = ic_sum / possible_key_len
             #verificam daca indicele de incidenta este cuprins intre valorile normale(daca toate sunt aproximativ 0.065 atunci suma tuturor impartita
             # la cate subsiruri sunt ar trebui sa fie tot aproximativ 0.06)
-        if 0.06 < avg_ic < 0.07:
+        if 0.063 < avg_ic < 0.07:
             key_maxim = possible_key_len
             return key_maxim
             #verificam pana la dimensiunea maxima de 30
@@ -113,7 +113,9 @@ def possible_letter(sequence_of_cryptotext):
         for letter1 in range(0,26):
             freq_in_seq[letter1] *= (1.0/float(len(sequence_of_cryptotext)))
         for letter2 in range(0,26):
+            #deviatia standard a acestei variante de shiftare
             freq_compared_one_letter += ((freq_in_seq[letter2] - float(english_frequences[letter2])) ** 2) / float(english_frequences[letter2])
+        #alegem litera pentru care deviatia standard este cea mai mica
         if freq_compared_one_letter < mini:
             mini = freq_compared_one_letter
             index = letter_to_shift
@@ -125,6 +127,7 @@ def get_key(text, key_len):
     key = [] * key_len
     for i in range(key_len):
         sequence=""
+        #secventa asupra careia se aplica elementul din cheie pe care incercam sa il aflam la momentul actual
         for j in range(0,len(text[i:]), key_len):
             sequence+=text[i+j]
         key.append(possible_letter(sequence))
