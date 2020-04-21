@@ -1,3 +1,5 @@
+import math
+
 lrot_values = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
 IP = (
     58, 50, 42, 34, 26, 18, 10, 2,
@@ -133,14 +135,12 @@ def get_round_keys(C0, D0):
     C1 = left_shift(C0, lrot_values[0])
     D1 = left_shift(D0, lrot_values[0])
     round_keys[1] = (C1, D1)
-
     i = 1
     for rot_val in lrot_values[1:]:
         i += 1;
         Ci = left_shift(round_keys[i - 1][0], rot_val)
         Di = left_shift(round_keys[i - 1][1], rot_val)
         round_keys[i] = (Ci, Di)
-
     for i, (Ci, Di) in round_keys.items():
         Ki = (Ci << 28) + Di
         round_keys[i] =  key_permutation(Ki, 56, PC2)
@@ -173,52 +173,15 @@ def round_function(Ri, Ki):
     return Ri
 
 
-if __name__ == '__main__':
-    #permutan tabela cu PC1
-    key = 0b0001001100110100010101110111100110011011101111001101111111110001
-    msg= 0b100100011010001010110011110001001101010111100110111101111
+def generate_binary(n):
+  bin_arr = range(0, int(math.pow(2,n)))
+  bin_arr = [bin(i)[2:] for i in bin_arr]
+  bin_arr = [i.zfill(n) for i in bin_arr]
+  return bin_arr
 
+
+def encrypt(key, plaintext):
     key = key_permutation(key, 64, PC1)
-    print("Mesaj de criptat: "  + bin(msg)[2:].zfill(56))
-
-    #impartit in doua si obtinem 16 blocuri shiftand la stanga blocul anterior
-    C0 = key >> 28
-    D0 = key & (2 ** 28 - 1)
-
-    #generam cheiele de runda shiftand la stanga blocul anterior
-    round_keys = get_round_keys(C0, D0)
-
-    #repetam procedeul si pentru mesaj
-    cript_block = key_permutation(msg, 64, IP)
-
-    L0 = cript_block >> 32
-    R0 = cript_block & (2 ** 32 - 1)
-
-    Ln = L0
-    Rn = R0
-
-    #Ln = Rn-1
-    #Rn = Ln-1 + f(Rn-1,Kn)
-    for i in range(1, 17):
-        Li = Rn
-        Ri = Ln ^ round_function(Rn, round_keys[i])
-        Ln = Li
-        Rn = Ri
-
-    cipher_block = (Ri << 32) + Li
-
-    cipher_block = key_permutation(cipher_block, 64, IP_INV)
-    print("MESAJ CRIPTAT:")
-    print(bin(cipher_block)[2:].zfill(64))
-
-    #decriptare:
-    print("DECRIPTARE")
-    # permutan tabela cu PC1
-    key = 0b0001001100110100010101110111100110011011101111001101111111110001
-    cript = 0b1000010111101000000100110101010000001111000010101011010000000101;
-
-    key = key_permutation(key, 64, PC1)
-    print("\nMesaj criptat: " + bin(cript)[2:].zfill(56))
 
     # impartit in doua si obtinem 16 blocuri shiftand la stanga blocul anterior
     C0 = key >> 28
@@ -228,7 +191,8 @@ if __name__ == '__main__':
     round_keys = get_round_keys(C0, D0)
 
     # repetam procedeul si pentru mesaj
-    cript_block = key_permutation(cript, 64, IP)
+
+    cript_block = key_permutation(plaintext, 64, IP)
 
     L0 = cript_block >> 32
     R0 = cript_block & (2 ** 32 - 1)
@@ -236,18 +200,84 @@ if __name__ == '__main__':
     Ln = L0
     Rn = R0
 
-    #folosim cheile in ordine inversa
     # Ln = Rn-1
     # Rn = Ln-1 + f(Rn-1,Kn)
-    for i in range(16, 0, -1):
+    for i in range(1, 17):
         Li = Rn
         Ri = Ln ^ round_function(Rn, round_keys[i])
         Ln = Li
         Rn = Ri
 
-    decrypt = (Ri << 32) + Li
+    cipher_block = (Ri << 32) + Li
+    cipher_block = key_permutation(cipher_block, 64, IP_INV)
+    return cipher_block
 
-    decrypt = key_permutation(decrypt, 64, IP_INV)
 
-    print("MESAJ DECRIPTAT")
-    print(bin(decrypt)[2:].zfill(64))
+def decrypt(key, criptat):
+    key = key_permutation(key, 64, PC1)
+
+    # impartit in doua si obtinem 16 blocuri shiftand la stanga blocul anterior
+    C0 = key >> 28
+    D0 = key & (2 ** 28 - 1)
+
+    # generam cheiele de runda shiftand la stanga blocul anterior
+    round_keys = get_round_keys(C0, D0)
+
+    # repetam procedeul si pentru mesaj
+
+    cript_block = key_permutation(criptat, 64, IP)
+
+    L0 = cript_block >> 32
+    R0 = cript_block & (2 ** 32 - 1)
+
+    Ln = L0
+    Rn = R0
+
+    # Ln = Rn-1
+    # Rn = Ln-1 + f(Rn-1,Kn)
+    for i in range(16, 0,-1):
+        Li = Rn
+        Ri = Ln ^ round_function(Rn, round_keys[i])
+        Ln = Li
+        Rn = Ri
+
+    cipher_block = (Ri << 32) + Li
+    cipher_block = key_permutation(cipher_block, 64, IP_INV)
+    return cipher_block
+
+
+if __name__ == '__main__':
+    #permutan tabela cu PC1
+    key = 0b00000000
+    msg = 0b100100011010001010110011110001001101010111100110111101111
+
+    for _ in range(2):
+        print("Mesaj de criptat: "  + bin(msg)[2:].zfill(64))
+        text_criptat = encrypt(key, msg)
+        msg = text_criptat
+        print("Mesaj criptat: " + bin(text_criptat)[2:].zfill(64))
+        key = 0b00000001
+
+    plaintext = 0b100100011010001010110011110001001101010111100110111101111
+    crypttext = text_criptat
+
+    key_crypt = {}
+
+    for key1 in generate_binary(8) :
+        text_criptat = encrypt(int(key1), plaintext)
+        key_crypt[bin(int(key1))] = bin(text_criptat)[2:].zfill(64)
+
+    key_decrypt = {}
+
+    for key2 in generate_binary(8):
+        text_criptat = decrypt(int(key2), crypttext)
+        key_decrypt[bin(int(key2))] = bin(text_criptat)[2:].zfill(64)
+        for key1, text_mijloc in key_crypt.items():
+            if text_mijloc == bin(text_criptat)[2:].zfill(64):
+                print(key1, key2)
+                break;
+
+
+
+
+

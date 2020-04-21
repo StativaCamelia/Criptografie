@@ -1,5 +1,13 @@
-seed = '00100001101010100011011010011100'
+import time
+import random
 
+def random_bistring():
+    bitList = []
+    for i in range(0, 32):
+        x = str(random.randint(0, 1))
+        bitList.append(x)
+    bitString = ''.join(bitList)
+    return bitString
 
 def get_bit_mask():
     primitive_equation = ''
@@ -41,7 +49,15 @@ def test(bytes):
 
 
 if __name__ == '__main__':
+    print("LSFR")
     mask_binary = ''
-    mask_binary = get_bit_mask()
-    print(lsfr(seed, mask_binary))
-    test(lsfr(seed, mask_binary))
+    for _ in range(20):
+        start_time = time.time()
+        seed = random_bistring()
+        mask_binary = get_bit_mask()
+        print(lsfr(seed, mask_binary))
+        print("Diferenta BITI:")
+        test(lsfr(seed, mask_binary))
+        print("Durata executie:")
+        print(time.time()- start_time)
+        print("------------------")
