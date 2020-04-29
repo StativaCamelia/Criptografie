@@ -1,6 +1,8 @@
 import math
+import string
+import random
 
-lrot_values = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
+schedule_of_shifts = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
 IP = (
     58, 50, 42, 34, 26, 18, 10, 2,
     60, 52, 44, 36, 28, 20, 12, 4,
@@ -53,7 +55,7 @@ E = (
     28, 29, 30, 31, 32, 1
 )
 
-Sboxes = {
+Sbox = {
     0: (
         14, 4, 13, 1, 2, 15, 11, 8, 3, 10, 6, 12, 5, 9, 0, 7,
         0, 15, 7, 4, 14, 2, 13, 1, 10, 6, 12, 11, 9, 5, 3, 8,
@@ -116,13 +118,11 @@ P = (
 )
 
 
-def key_permutation(key, lenght, table):
+def apply_permutation(table, key, lenght):
     #completam pana la 64 de biti
     block = bin(key)[2:].zfill(lenght)
     #permutam conform tabelei
-    permutare = []
-    for pos in range(len(table)):
-        permutare.append(block[table[pos]-1])
+    permutare = [block[table[_]-1] for _ in range(len(table))]
     return int(''.join(permutare), 2)
 
 
@@ -130,31 +130,34 @@ def left_shift(prev_key, rot_val):
     return (prev_key << rot_val % 28) & (2 ** 28 - 1) | ((prev_key & (2 ** 28 - 1)) >> (28 - (rot_val % 28)))
 
 
-def get_round_keys(C0, D0):
+def get_round_keys(key):
+    C0 = key >> 28
+    D0 = key & (2 ** 28 - 1)
     round_keys = dict.fromkeys(range(1, 17))
-    C1 = left_shift(C0, lrot_values[0])
-    D1 = left_shift(D0, lrot_values[0])
+    C1 = left_shift(C0, schedule_of_shifts[0])
+    D1 = left_shift(D0, schedule_of_shifts[0])
     round_keys[1] = (C1, D1)
     i = 1
-    for rot_val in lrot_values[1:]:
+    for current_schedule in schedule_of_shifts[1:]:
         i += 1;
-        Ci = left_shift(round_keys[i - 1][0], rot_val)
-        Di = left_shift(round_keys[i - 1][1], rot_val)
+        Ci = left_shift(round_keys[i - 1][0], current_schedule)
+        Di = left_shift(round_keys[i - 1][1], current_schedule)
         round_keys[i] = (Ci, Di)
+
     for i, (Ci, Di) in round_keys.items():
-        Ki = (Ci << 28) + Di
-        round_keys[i] =  key_permutation(Ki, 56, PC2)
+        round_keys[i] = apply_permutation(PC2, (Ci << 28) + Di, 56)
     return round_keys
 
 
 def round_function(Ri, Ki):
     #Expandam de la 32 de bits la 48 de bits
-    Ri =key_permutation(Ri, 32, E)
+    Ri = apply_permutation(E, Ri, 32)
     #Kn + E(Rn-1)
     Ri ^= Ki
-
+    Ri_adresses = []
     #grupam biti in grupuri de cate 6 si fiecare grup ne ofera un bloc din Sboxes
-    Ri_adresses = [((Ri & (0b111111 << shift_val)) >> shift_val) for shift_val in (42, 36, 30, 24, 18, 12, 6, 0)]
+    for adress in (42, 36, 30, 24, 18, 12, 6, 0):
+        Ri_adresses.append((Ri & (0b111111 << adress)) >> adress)
 
     for i, block in enumerate(Ri_adresses):
         #primul si ultimul bit al blocului
@@ -162,14 +165,11 @@ def round_function(Ri, Ki):
         #cei 4 biti din mijloc
         col = (0b011110 & block) >> 1
         #elementul de pe linia si coloana obtinuta
-        Ri_adresses[i] = Sboxes[i][16 * row + col]
-
+        Ri_adresses[i] = Sbox[i][16 * row + col]
     Ri = 0
     for block, lshift_val in zip(Ri_adresses, (28, 24, 20, 16, 12, 8, 4, 0)):
         Ri += (block << lshift_val)
-
-    Ri = key_permutation(Ri, 32, P)
-
+    Ri = apply_permutation(P, Ri, 32)
     return Ri
 
 
@@ -180,101 +180,123 @@ def generate_binary(n):
   return bin_arr
 
 
-def encrypt(key, plaintext):
-    key = key_permutation(key, 64, PC1)
-
-    # impartit in doua si obtinem 16 blocuri shiftand la stanga blocul anterior
-    C0 = key >> 28
-    D0 = key & (2 ** 28 - 1)
-
-    # generam cheiele de runda shiftand la stanga blocul anterior
-    round_keys = get_round_keys(C0, D0)
-
-    # repetam procedeul si pentru mesaj
-
-    cript_block = key_permutation(plaintext, 64, IP)
-
+def new_keys(round_keys, cript_block, decrypt = False):
+    # il impartim in doua
     L0 = cript_block >> 32
     R0 = cript_block & (2 ** 32 - 1)
-
     Ln = L0
     Rn = R0
+    if(not decrypt):
+        for i in range(1, 17):
+            Li = Rn
+            Ri = Ln ^ round_function(Rn, round_keys[i])
+            Ln = Li
+            Rn = Ri
+    else:
+        for i in range(16, 0, -1):
+            Li = Rn
+            Ri = Ln ^ round_function(Rn, round_keys[i])
+            Ln = Li
+            Rn = Ri
+    return Ri,Li
+
+
+def encrypt(key, plaintext):
+    key = apply_permutation(PC1, key, 64)
+    # generam cheiele de runda shiftand la stanga blocul anterior
+    round_keys = get_round_keys(key)
+
+    # repetam procedeul si pentru mesaj
+    cript_block = apply_permutation(IP, msg, 64)
 
     # Ln = Rn-1
     # Rn = Ln-1 + f(Rn-1,Kn)
-    for i in range(1, 17):
-        Li = Rn
-        Ri = Ln ^ round_function(Rn, round_keys[i])
-        Ln = Li
-        Rn = Ri
+    Ri, Li = new_keys(round_keys, cript_block)
 
+    # reverse keys
     cipher_block = (Ri << 32) + Li
-    cipher_block = key_permutation(cipher_block, 64, IP_INV)
+    cipher_block = apply_permutation(IP_INV, cipher_block, 64)
     return cipher_block
 
 
 def decrypt(key, criptat):
-    key = key_permutation(key, 64, PC1)
-
+    key = apply_permutation(PC1, key, 64)
     # impartit in doua si obtinem 16 blocuri shiftand la stanga blocul anterior
-    C0 = key >> 28
-    D0 = key & (2 ** 28 - 1)
-
     # generam cheiele de runda shiftand la stanga blocul anterior
-    round_keys = get_round_keys(C0, D0)
+    round_keys = get_round_keys(key)
 
     # repetam procedeul si pentru mesaj
+    cript_block = apply_permutation(IP, criptat, 64)
 
-    cript_block = key_permutation(criptat, 64, IP)
+    Ri, Li = new_keys(round_keys, cript_block, True)
 
-    L0 = cript_block >> 32
-    R0 = cript_block & (2 ** 32 - 1)
+    decrypt = (Ri << 32) + Li
+    decrypt = apply_permutation(IP_INV, decrypt, 64)
 
-    Ln = L0
-    Rn = R0
+    return decrypt
 
-    # Ln = Rn-1
-    # Rn = Ln-1 + f(Rn-1,Kn)
-    for i in range(16, 0,-1):
-        Li = Rn
-        Ri = Ln ^ round_function(Rn, round_keys[i])
-        Ln = Li
-        Rn = Ri
+def randomString(stringLength=64):
+    letters = ["0", "1"]
 
-    cipher_block = (Ri << 32) + Li
-    cipher_block = key_permutation(cipher_block, 64, IP_INV)
-    return cipher_block
-
+    word =  ''.join(random.choice(letters) for i in range(stringLength))
+    return int(word,2)
 
 if __name__ == '__main__':
     #permutan tabela cu PC1
-    key = 0b00000000
-    msg = 0b100100011010001010110011110001001101010111100110111101111
+    key = 0b10001000
+    msg = randomString()
 
     for _ in range(2):
         print("Mesaj de criptat: "  + bin(msg)[2:].zfill(64))
         text_criptat = encrypt(key, msg)
         msg = text_criptat
         print("Mesaj criptat: " + bin(text_criptat)[2:].zfill(64))
-        key = 0b00000001
+        key = 0b0001000
 
-    plaintext = 0b100100011010001010110011110001001101010111100110111101111
-    crypttext = text_criptat
+    plaintext1 = 0b100100011010001010110011110001001101010111100110111101111
+    crypttext1 = text_criptat
+
+    key = 0b10001000
+    msg = randomString()
+
+    for _ in range(2):
+        print("Mesaj de criptat: " + bin(msg)[2:].zfill(64))
+        text_criptat = encrypt(key, msg)
+        msg = text_criptat
+        print("Mesaj criptat: " + bin(text_criptat)[2:].zfill(64))
+        key = 0b0001000
+
+    plaintext2 = 0b100100011010001010110011110001001101010111100110111101111
+    crypttext2 = text_criptat
 
     key_crypt = {}
 
     for key1 in generate_binary(8) :
-        text_criptat = encrypt(int(key1), plaintext)
+        text_criptat = encrypt(int(key1), plaintext1)
+        key_crypt[bin(int(key1))] = bin(text_criptat)[2:].zfill(64)
+
+    key_decrypt = {}
+
+    for key2 in generate_binary(64):
+        text_criptat = decrypt(int(key2), crypttext1)
+        key_decrypt[bin(int(key2))] = bin(text_criptat)[2:].zfill(64)
+        for key1, text_mijloc in key_crypt.items():
+            if text_mijloc == bin(text_criptat)[2:].zfill(64):
+                print(key1[2:].zfill(8), key2)
+                break;
+
+    for key1 in generate_binary(8) :
+        text_criptat = encrypt(int(key1), plaintext2)
         key_crypt[bin(int(key1))] = bin(text_criptat)[2:].zfill(64)
 
     key_decrypt = {}
 
     for key2 in generate_binary(8):
-        text_criptat = decrypt(int(key2), crypttext)
+        text_criptat = decrypt(int(key2), crypttext2)
         key_decrypt[bin(int(key2))] = bin(text_criptat)[2:].zfill(64)
         for key1, text_mijloc in key_crypt.items():
             if text_mijloc == bin(text_criptat)[2:].zfill(64):
-                print(key1, key2)
+                print(key1[2:].zfill(8), key2)
                 break;
 
 
