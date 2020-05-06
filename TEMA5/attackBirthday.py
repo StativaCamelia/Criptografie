@@ -77,7 +77,8 @@ def sha_1(message):
         h3 = h3 + d & 0xffffffff
         h4 = h4 + e & 0xffffffff
     result = '%08x%08x%08x%08x%08x' % (h0, h1, h2, h3, h4)
-    result = hex(int(bin(int(result,16))[:32],2))
+
+    result = int((bin(int(result,16))[:32]),2)
     return result
 
 #functia este luata de aici: https://pynative.com/python-generate-random-string/
@@ -92,6 +93,7 @@ if __name__ == '__main__':
         random_message = randomString(10)
         hashResult = sha_1(random_message)
         if hashResult in results:
+            print(_)
             print("Am gasit coeziunea")
-        results += hashResult
+        results.append(hashResult)
 

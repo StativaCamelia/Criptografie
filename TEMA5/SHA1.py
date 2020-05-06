@@ -27,7 +27,6 @@ def sha_1(message):
     h4 = 0xC3D2E1F0
 
     message = prepocesare(message)
-    print(message)
     for chunk in chunks(message, 512):
         #vom avea 16 cuvinte
         sub_chunks = chunks(chunk, 32)
@@ -82,4 +81,32 @@ def sha_1(message):
 
 
 if __name__ == '__main__':
-    print(sha_1("The quick brown fox jumps over the lazy dog"))
+    print("PRIMUL VECTOR DE TEST:")
+    print("Expected OUTPUT:")
+    print("A9993E36 4706816A BA3E2571 7850C26C 9CD0D89D")
+
+    print("Actual OUTPUT:")
+    print(sha_1("abc"))
+
+    print("-------------------------")
+    print("AL DOILEA VECTOR DE TEST:")
+    print("Expected OUTPUT:")
+    print("84983E44 1C3BD26E BAAE4AA1 F95129E5 E54670F1")
+    print("Actual OUTPUT:")
+    print(sha_1("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))
+
+    print("---------------------------")
+    print("EFECT AVALANSA")
+    print("PRIMUL MESAJ: abc")
+    result1 = bin(int(sha_1("abc"),16))
+    print(sha_1("abc"))
+    print("Al doilea MESAJ: abd")
+    print(sha_1("adb"))
+    result2 = bin(int(sha_1("abd"),16))
+    print("DISTANTA HAMMING:")
+    pos = 0
+    for i in range(len(result1)):
+        if result1[i] != result2[i]:
+            pos = pos + 1
+    print(pos)
+
